@@ -76,14 +76,15 @@ async function logout() {
 
 // =========== Router ===========
 const routes = {
-  dashboard: () => renderDashboard(),
-  reports: () => renderReports(),
-  templates: () => renderTemplates(),
-  departments: () => renderDepartments(),
-  users: () => renderUsers(),
-  settings: () => renderSettings(),
-  audit: () => renderAudit(),
-  evaluations: () => renderEvaluations()
+  dashboard:  () => renderDashboard(),
+  reports:    () => renderReports(),
+  templates:  () => renderTemplates(),
+  departments:() => renderDepartments(),
+  users:      () => renderUsers(),
+  settings:   () => renderSettings(),
+  audit:      () => renderAudit(),
+  evaluations:() => renderEvaluations(),
+  documents:  () => renderDocuments()
 };
 
 function navigate(page) {

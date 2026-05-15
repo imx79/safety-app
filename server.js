@@ -35,6 +35,28 @@ db.exec(`
   try { db.exec(`ALTER TABLE templates ADD COLUMN ${col} TEXT`); } catch(e) {}
 });
 
+// جدول مكتبة النماذج والخطابات
+db.exec(`
+  CREATE TABLE IF NOT EXISTS document_library (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name_ar TEXT NOT NULL,
+    name_en TEXT,
+    category TEXT NOT NULL DEFAULT 'general',
+    description TEXT,
+    file_path TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    file_size INTEGER DEFAULT 0,
+    version INTEGER DEFAULT 1,
+    tags TEXT,
+    is_active INTEGER DEFAULT 1,
+    created_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+  )
+`);
+
 const app = express();
 
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -59,6 +81,7 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/documents', require('./routes/documents'));
 
 // ملفات ثابتة
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
