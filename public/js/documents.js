@@ -86,12 +86,17 @@ async function renderDocuments() {
   }
 }
 
+// أنواع الملفات التي تدعم التعديل المباشر
+const DIRECT_EDIT_EXTS = ['txt','html','htm','json','csv','md','jpg','jpeg','png','gif','webp','bmp','docx','xlsx'];
+
 function docCard(d) {
   const t = docTypeInfo(d.file_type);
   const cat = docCatInfo(d.category);
   const canEdit = hasPermission('templates.edit');
   const canDel  = hasPermission('templates.delete');
   const safeName = (d.name_ar || '').replace(/'/g, "\\'");
+  const ext = (d.original_name.split('.').pop() || '').toLowerCase();
+  const canDirectEdit = canEdit && DIRECT_EDIT_EXTS.includes(ext);
   return `
     <div class="doc-card">
       <div class="doc-card-icon" style="background:${t.bg};color:${t.color}">${t.icon}</div>
@@ -111,8 +116,9 @@ function docCard(d) {
       <div class="doc-card-actions">
         <button class="doc-action-btn primary" title="معاينة" onclick="docPreview(${d.id})">👁️ عرض</button>
         <a class="doc-action-btn success" title="تحميل" href="/api/documents/${d.id}/download">⬇️ تحميل</a>
-        ${canEdit ? `<button class="doc-action-btn warning" title="رفع نسخة جديدة" onclick="docNewVersion(${d.id},'${safeName}')">🔄 تحديث</button>` : ''}
-        ${canEdit ? `<button class="doc-action-btn" title="تعديل البيانات" onclick="docEditMeta(${d.id})">✏️</button>` : ''}
+        ${canDirectEdit ? `<button class="doc-action-btn info" title="تعديل المحتوى مباشرة" onclick="docDirectEdit(${d.id})">✏️ تعديل</button>` : ''}
+        ${canEdit ? `<button class="doc-action-btn warning" title="رفع نسخة جديدة" onclick="docNewVersion(${d.id},'${safeName}')">🔄 إصدار</button>` : ''}
+        ${canEdit ? `<button class="doc-action-btn" title="تعديل البيانات" onclick="docEditMeta(${d.id})">🏷️</button>` : ''}
         ${canDel  ? `<button class="doc-action-btn danger" title="حذف" onclick="docDelete(${d.id})">🗑️</button>` : ''}
       </div>
     </div>`;
@@ -359,5 +365,355 @@ async function docDelete(id) {
     await api(`/api/documents/${id}`, { method: 'DELETE' });
     toast('تم الحذف');
     renderDocuments();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// =========== تعديل مباشر ===========
+
+// متغيرات محرر الصور
+let _imgRotation = 0, _imgFlipH = false, _imgFlipV = false, _imgOriginalEl = null;
+
+async function docDirectEdit(id) {
+  let doc;
+  try { doc = await api(`/api/documents/${id}`); }
+  catch (e) { return toast(e.message, 'error'); }
+
+  const ext = (doc.original_name.split('.').pop() || '').toLowerCase();
+  if (['txt','html','htm','json','csv','md'].includes(ext))      docEditText(doc);
+  else if (['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) docEditImage(doc);
+  else if (ext === 'docx')                                        docEditDocx(doc);
+  else if (ext === 'xlsx')                                        docEditXlsx(doc);
+  else toast('هذا النوع لا يدعم التعديل المباشر — استخدم "🔄 إصدار" لرفع نسخة معدّلة', 'info');
+}
+
+// ======= محرر النصوص =======
+async function docEditText(doc) {
+  let content = '', ext = 'txt';
+  try {
+    const r = await api(`/api/documents/${doc.id}/text-content`);
+    content = r.content; ext = r.ext;
+  } catch (e) { return toast(e.message, 'error'); }
+
+  const isHtml = ['html', 'htm'].includes(ext);
+  const escaped = content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  showModal(`✏️ تعديل: ${doc.name_ar}`,
+    `<div class="doc-edit-notice">💡 التعديلات ستُحفظ مباشرة على الملف المرفوع</div>
+    ${isHtml ? `
+      <div class="rte-wrap">
+        <div class="rte-toolbar">
+          <button class="rte-btn" onclick="rte('dTxtRte','bold')"><b>B</b></button>
+          <button class="rte-btn" onclick="rte('dTxtRte','italic')"><i>I</i></button>
+          <button class="rte-btn" onclick="rte('dTxtRte','underline')"><u>U</u></button>
+          <span class="rte-sep"></span>
+          <select class="rte-select" onchange="rte('dTxtRte','formatBlock',this.value)">
+            <option value="p">فقرة</option><option value="h1">عنوان 1</option>
+            <option value="h2">عنوان 2</option><option value="h3">عنوان 3</option>
+          </select>
+          <span class="rte-sep"></span>
+          <button class="rte-btn" onclick="rte('dTxtRte','insertUnorderedList')">•</button>
+          <button class="rte-btn" onclick="rte('dTxtRte','insertOrderedList')">1.</button>
+          <span class="rte-sep"></span>
+          <button class="rte-btn" onclick="rte('dTxtRte','justifyRight')">⇤</button>
+          <button class="rte-btn" onclick="rte('dTxtRte','justifyCenter')">☰</button>
+          <button class="rte-btn" onclick="rte('dTxtRte','justifyLeft')">⇥</button>
+          <span class="rte-sep"></span>
+          <input type="color" class="rte-color-btn" title="لون النص" onchange="rte('dTxtRte','foreColor',this.value)">
+        </div>
+        <div id="dTxtRte" class="rte-content" contenteditable="true" style="min-height:380px">${content}</div>
+      </div>
+    ` : `
+      <textarea id="dTxtArea" style="width:100%;min-height:420px;font-family:monospace;font-size:13px;padding:10px;border:1px solid var(--border);border-radius:6px;resize:vertical;direction:ltr;background:var(--bg)">${escaped}</textarea>
+    `}`,
+    `<button class="btn btn-ghost" onclick="closeModal()">إلغاء</button>
+     <button class="btn btn-primary" onclick="saveDocText(${doc.id},'${ext}')">💾 حفظ التغييرات</button>`,
+    'modal-lg');
+}
+
+async function saveDocText(id, ext) {
+  const isHtml = ['html','htm'].includes(ext);
+  const content = isHtml
+    ? document.getElementById('dTxtRte').innerHTML
+    : document.getElementById('dTxtArea').value;
+  try {
+    await api(`/api/documents/${id}/text-content`, { method: 'PUT', body: { content } });
+    toast('✅ تم حفظ التغييرات');
+    closeModal(); renderDocuments();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ======= محرر الصور =======
+function docEditImage(doc) {
+  _imgRotation = 0; _imgFlipH = false; _imgFlipV = false; _imgOriginalEl = null;
+
+  showModal(`🖼️ تعديل الصورة: ${doc.name_ar}`,
+    `<div class="doc-edit-notice">💡 يمكنك التدوير والقلب وتعديل الألوان ثم حفظ الصورة مباشرة</div>
+    <div class="img-editor-wrap">
+      <div class="img-editor-toolbar">
+        <button class="btn btn-ghost btn-sm" onclick="imgRotate(-90)">↺ يسار</button>
+        <button class="btn btn-ghost btn-sm" onclick="imgRotate(90)">↻ يمين</button>
+        <button class="btn btn-ghost btn-sm" onclick="imgFlip('h')">⇄ أفقي</button>
+        <button class="btn btn-ghost btn-sm" onclick="imgFlip('v')">⇅ رأسي</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetImgEditor()">↩️ إعادة</button>
+      </div>
+      <div class="img-editor-sliders">
+        <label>☀️ السطوع</label>
+        <input type="range" id="imgBrightness" min="50" max="200" value="100" oninput="applyImgFilter()">
+        <label>◑ التباين</label>
+        <input type="range" id="imgContrast" min="50" max="200" value="100" oninput="applyImgFilter()">
+        <label>🎨 الإشباع</label>
+        <input type="range" id="imgSaturate" min="0" max="200" value="100" oninput="applyImgFilter()">
+      </div>
+      <div style="text-align:center;overflow:auto">
+        <canvas id="imgEdCanvas" style="max-width:100%;max-height:400px;border:1px solid var(--border);border-radius:8px"></canvas>
+      </div>
+      <img id="imgEdSrc" src="${doc.file_path}" crossorigin="anonymous" style="display:none" onload="initImgEditor()">
+    </div>`,
+    `<button class="btn btn-ghost" onclick="closeModal()">إلغاء</button>
+     <button class="btn btn-primary" onclick="saveDocImage(${doc.id},'${doc.original_name}')">💾 حفظ الصورة</button>`,
+    'modal-xl');
+}
+
+function initImgEditor() {
+  _imgOriginalEl = document.getElementById('imgEdSrc');
+  drawImgCanvas();
+}
+
+function drawImgCanvas() {
+  const canvas = document.getElementById('imgEdCanvas');
+  const img = _imgOriginalEl;
+  if (!canvas || !img) return;
+  const rot = ((_imgRotation % 360) + 360) % 360;
+  const swapped = rot === 90 || rot === 270;
+  const w = swapped ? img.naturalHeight : img.naturalWidth;
+  const h = swapped ? img.naturalWidth  : img.naturalHeight;
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(_imgRotation * Math.PI / 180);
+  ctx.scale(_imgFlipH ? -1 : 1, _imgFlipV ? -1 : 1);
+  ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+  ctx.restore();
+  applyImgFilter();
+}
+
+function applyImgFilter() {
+  const canvas = document.getElementById('imgEdCanvas');
+  if (!canvas) return;
+  const b = document.getElementById('imgBrightness')?.value || 100;
+  const c = document.getElementById('imgContrast')?.value  || 100;
+  const s = document.getElementById('imgSaturate')?.value  || 100;
+  canvas.style.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%)`;
+}
+
+function imgRotate(deg) { _imgRotation += deg; drawImgCanvas(); }
+function imgFlip(dir)   { if (dir === 'h') _imgFlipH = !_imgFlipH; else _imgFlipV = !_imgFlipV; drawImgCanvas(); }
+function resetImgEditor() {
+  _imgRotation = 0; _imgFlipH = false; _imgFlipV = false;
+  ['imgBrightness','imgContrast','imgSaturate'].forEach(id => { const el = document.getElementById(id); if (el) el.value = 100; });
+  drawImgCanvas();
+}
+
+async function saveDocImage(id, originalName) {
+  const canvas = document.getElementById('imgEdCanvas');
+  if (!canvas) return toast('لم يتم تحميل الصورة', 'error');
+
+  // canvas مؤقت لدمج الفلاتر مع الصورة
+  const b = document.getElementById('imgBrightness').value;
+  const c = document.getElementById('imgContrast').value;
+  const s = document.getElementById('imgSaturate').value;
+  const fc = document.createElement('canvas');
+  fc.width = canvas.width; fc.height = canvas.height;
+  const fCtx = fc.getContext('2d');
+  fCtx.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%)`;
+  fCtx.drawImage(canvas, 0, 0);
+
+  const ext = (originalName.split('.').pop() || 'png').toLowerCase();
+  const mime = (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg' : 'image/png';
+
+  fc.toBlob(async (blob) => {
+    if (!blob) return toast('فشل تحويل الصورة', 'error');
+    const fd = new FormData();
+    fd.append('file', blob, originalName);
+    try {
+      toast('جاري الحفظ...', 'info');
+      const res = await fetch(`/api/documents/${id}/overwrite`, { method: 'PUT', body: fd, credentials: 'same-origin' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'فشل الحفظ');
+      toast('✅ تم حفظ الصورة بنجاح'); closeModal(); renderDocuments();
+    } catch (e) { toast(e.message, 'error'); }
+  }, mime, 0.92);
+}
+
+// ======= محرر Word (DOCX) =======
+async function docEditDocx(doc) {
+  if (typeof mammoth === 'undefined') {
+    toast('⏳ جاري تحميل محرر Word، حاول مرة أخرى بعد لحظة...', 'info');
+    return;
+  }
+
+  showModal(`📝 تعديل Word: ${doc.name_ar}`,
+    `<div style="text-align:center;padding:48px"><div class="doc-spinner"></div><p style="margin-top:14px;color:var(--text-secondary)">جاري تحميل الوثيقة...</p></div>`,
+    '', 'modal-xl');
+
+  try {
+    const resp = await fetch(doc.file_path);
+    if (!resp.ok) throw new Error('فشل تحميل الملف');
+    const ab = await resp.arrayBuffer();
+    const { value: html, messages } = await mammoth.convertToHtml({ arrayBuffer: ab });
+
+    document.getElementById('modalBody').innerHTML = `
+      <div class="doc-edit-notice">💡 تعديل ملف Word — قد تتغير بعض التنسيقات المعقدة عند الحفظ</div>
+      <div class="rte-wrap">
+        <div class="rte-toolbar">
+          <button class="rte-btn" onclick="rte('docxRte','bold')"><b>B</b></button>
+          <button class="rte-btn" onclick="rte('docxRte','italic')"><i>I</i></button>
+          <button class="rte-btn" onclick="rte('docxRte','underline')"><u>U</u></button>
+          <span class="rte-sep"></span>
+          <select class="rte-select" onchange="rte('docxRte','formatBlock',this.value)">
+            <option value="p">فقرة</option><option value="h1">عنوان 1</option>
+            <option value="h2">عنوان 2</option><option value="h3">عنوان 3</option>
+          </select>
+          <span class="rte-sep"></span>
+          <button class="rte-btn" onclick="rte('docxRte','insertUnorderedList')">•</button>
+          <button class="rte-btn" onclick="rte('docxRte','insertOrderedList')">1.</button>
+          <span class="rte-sep"></span>
+          <button class="rte-btn" onclick="rte('docxRte','justifyRight')">⇤</button>
+          <button class="rte-btn" onclick="rte('docxRte','justifyCenter')">☰</button>
+          <button class="rte-btn" onclick="rte('docxRte','justifyLeft')">⇥</button>
+          <span class="rte-sep"></span>
+          <input type="color" class="rte-color-btn" title="لون النص" onchange="rte('docxRte','foreColor',this.value)">
+          <select class="rte-select" onchange="rte('docxRte','fontSize',this.value)">
+            <option value="">حجم</option><option value="2">صغير</option>
+            <option value="3">عادي</option><option value="4">كبير</option><option value="5">أكبر</option>
+          </select>
+        </div>
+        <div id="docxRte" class="rte-content" contenteditable="true" style="min-height:420px;direction:rtl">${html}</div>
+      </div>`;
+
+    document.getElementById('modalFooter').innerHTML = `
+      <button class="btn btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveDocDocx(${doc.id},'${doc.original_name}')">💾 حفظ كـ Word</button>`;
+  } catch (e) {
+    document.getElementById('modalBody').innerHTML =
+      `<div class="empty-state"><div class="icon">⚠️</div><p>فشل تحميل الوثيقة: ${e.message}</p></div>`;
+  }
+}
+
+async function saveDocDocx(id, originalName) {
+  if (typeof htmlDocx === 'undefined') return toast('مكتبة تحويل Word غير محملة بعد', 'error');
+
+  const html = document.getElementById('docxRte').innerHTML;
+  const fullHtml = `<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
+    <style>body{font-family:Arial,sans-serif;font-size:12pt;direction:rtl;}
+    table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px}</style>
+    </head><body>${html}</body></html>`;
+  try {
+    const blob = htmlDocx.asBlob(fullHtml, { orientation: 'portrait', margins: { top: 720, right: 720, bottom: 720, left: 720 } });
+    const fd = new FormData();
+    fd.append('file', blob, originalName);
+    toast('جاري الحفظ...', 'info');
+    const res = await fetch(`/api/documents/${id}/overwrite`, { method: 'PUT', body: fd, credentials: 'same-origin' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'فشل الحفظ');
+    toast('✅ تم حفظ الوثيقة بنجاح'); closeModal(); renderDocuments();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ======= محرر Excel (XLSX) =======
+async function docEditXlsx(doc) {
+  if (typeof XLSX === 'undefined') {
+    toast('⏳ جاري تحميل محرر Excel، حاول مرة أخرى بعد لحظة...', 'info');
+    return;
+  }
+
+  showModal(`📊 تعديل Excel: ${doc.name_ar}`,
+    `<div style="text-align:center;padding:48px"><div class="doc-spinner"></div><p style="margin-top:14px;color:var(--text-secondary)">جاري تحميل جدول البيانات...</p></div>`,
+    '', 'modal-xl');
+
+  try {
+    const resp = await fetch(doc.file_path);
+    if (!resp.ok) throw new Error('فشل تحميل الملف');
+    const ab = await resp.arrayBuffer();
+    const wb = XLSX.read(ab, { type: 'array' });
+    window._xlsxWb = wb;
+    window._xlsxActiveSheet = 0;
+
+    const sheetTabs = wb.SheetNames.map((n, i) =>
+      `<button class="doc-cat-btn${i===0?' active':''}" onclick="loadXlsxSheet(${i})">${n}</button>`
+    ).join('');
+
+    const tableHtml = buildXlsxTable(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:'' }));
+
+    document.getElementById('modalBody').innerHTML = `
+      <div class="doc-edit-notice">💡 انقر على أي خلية لتعديلها مباشرة</div>
+      ${wb.SheetNames.length > 1 ? `<div class="doc-cat-tabs" style="margin-bottom:10px">${sheetTabs}</div>` : ''}
+      <div style="overflow:auto;max-height:460px;border:1px solid var(--border);border-radius:6px">
+        <table id="xlsxTable" class="xlsx-edit-table">${tableHtml}</table>
+      </div>`;
+
+    document.getElementById('modalFooter').innerHTML = `
+      <button class="btn btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveDocXlsx(${doc.id},'${doc.original_name}')">💾 حفظ كـ Excel</button>`;
+  } catch (e) {
+    document.getElementById('modalBody').innerHTML =
+      `<div class="empty-state"><div class="icon">⚠️</div><p>فشل تحميل الجدول: ${e.message}</p></div>`;
+  }
+}
+
+function buildXlsxTable(data) {
+  if (!data || !data.length) return '<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--text-muted)">جدول فارغ</td></tr>';
+  const cols = Math.max(...data.map(r => (r || []).length), 1);
+  let html = '<thead><tr><th class="xlsx-idx">#</th>';
+  for (let c = 0; c < cols; c++)
+    html += `<th contenteditable="true" data-r="0" data-c="${c}" class="xlsx-head">${data[0]?.[c] ?? ''}</th>`;
+  html += '</tr></thead><tbody>';
+  for (let r = 1; r < data.length; r++) {
+    html += `<tr><td class="xlsx-idx">${r}</td>`;
+    for (let c = 0; c < cols; c++)
+      html += `<td contenteditable="true" data-r="${r}" data-c="${c}" class="xlsx-cell">${data[r]?.[c] ?? ''}</td>`;
+    html += '</tr>';
+  }
+  return html + '</tbody>';
+}
+
+function loadXlsxSheet(index) {
+  const wb = window._xlsxWb;
+  if (!wb) return;
+  window._xlsxActiveSheet = index;
+  document.querySelectorAll('#modalBody .doc-cat-btn').forEach((b, i) => b.classList.toggle('active', i === index));
+  const ws = wb.Sheets[wb.SheetNames[index]];
+  const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  document.getElementById('xlsxTable').innerHTML = buildXlsxTable(data);
+}
+
+async function saveDocXlsx(id, originalName) {
+  const table = document.getElementById('xlsxTable');
+  if (!table) return toast('لم يتم تحميل الجدول', 'error');
+
+  const wb = window._xlsxWb;
+  const si = window._xlsxActiveSheet || 0;
+  const rows = [];
+  table.querySelectorAll('tr').forEach(tr => {
+    const cells = [];
+    tr.querySelectorAll('[contenteditable]').forEach(td => cells.push(td.textContent));
+    if (cells.length) rows.push(cells);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  wb.Sheets[wb.SheetNames[si]] = ws;
+  const u8 = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+  const blob = new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+  const fd = new FormData();
+  fd.append('file', blob, originalName);
+  try {
+    toast('جاري الحفظ...', 'info');
+    const res = await fetch(`/api/documents/${id}/overwrite`, { method: 'PUT', body: fd, credentials: 'same-origin' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'فشل الحفظ');
+    toast('✅ تم حفظ الجدول بنجاح'); closeModal(); renderDocuments();
   } catch (e) { toast(e.message, 'error'); }
 }

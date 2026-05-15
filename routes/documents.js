@@ -151,4 +151,78 @@ router.delete('/:id', requirePermission('templates.delete'), (req, res) => {
   res.json({ success: true });
 });
 
+// ===== تعديل مباشر =====
+
+// دالة مساعدة لحل مسار الملف
+function resolvePath(filePath) {
+  return path.isAbsolute(filePath)
+    ? filePath
+    : path.join(__dirname, '..', filePath.replace(/^\//, ''));
+}
+
+// قراءة محتوى نصي مباشر
+router.get('/:id/text-content', requirePermission('templates.view'), (req, res) => {
+  const doc = db.prepare('SELECT * FROM document_library WHERE id = ? AND is_active = 1').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'غير موجود' });
+
+  const TEXT_EXTS = ['.txt', '.html', '.htm', '.json', '.csv', '.md', '.rtf'];
+  const ext = path.extname(doc.original_name).toLowerCase();
+  if (!TEXT_EXTS.includes(ext))
+    return res.status(400).json({ error: 'هذا النوع لا يدعم التعديل النصي المباشر' });
+
+  const fullPath = resolvePath(doc.file_path);
+  if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'الملف غير موجود على الخادم' });
+
+  try {
+    const content = fs.readFileSync(fullPath, 'utf8');
+    res.json({ content, ext: ext.replace('.', '') });
+  } catch (e) {
+    res.status(500).json({ error: 'فشل قراءة الملف: ' + e.message });
+  }
+});
+
+// حفظ محتوى نصي مباشر (يكتب على نفس الملف)
+router.put('/:id/text-content', requirePermission('templates.edit'), (req, res) => {
+  const { content } = req.body;
+  if (content === undefined) return res.status(400).json({ error: 'المحتوى مطلوب' });
+
+  const doc = db.prepare('SELECT * FROM document_library WHERE id = ? AND is_active = 1').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'غير موجود' });
+
+  const fullPath = resolvePath(doc.file_path);
+  try {
+    fs.writeFileSync(fullPath, content, 'utf8');
+    db.prepare('UPDATE document_library SET updated_at=CURRENT_TIMESTAMP WHERE id=?').run(doc.id);
+    logAudit(req.session.user.id, 'edit_document_content', 'document', doc.id, doc.name_ar, req.ip);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: 'فشل حفظ الملف: ' + e.message });
+  }
+});
+
+// استبدال مباشر للملف (بدون رفع إصدار جديد)
+router.put('/:id/overwrite', requirePermission('templates.edit'), (req, res) => {
+  const doc = db.prepare('SELECT * FROM document_library WHERE id = ? AND is_active = 1').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'غير موجود' });
+
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'لم يتم رفع ملف' });
+
+    // حذف الملف القديم
+    const oldPath = resolvePath(doc.file_path);
+    if (fs.existsSync(oldPath)) { try { fs.unlinkSync(oldPath); } catch (e) {} }
+
+    const fileType = detectType(req.file.originalname);
+    db.prepare(`
+      UPDATE document_library
+      SET file_path=?, file_type=?, original_name=?, file_size=?, updated_at=CURRENT_TIMESTAMP
+      WHERE id=?
+    `).run('/uploads/' + req.file.filename, fileType, req.file.originalname, req.file.size, doc.id);
+
+    logAudit(req.session.user.id, 'overwrite_document', 'document', doc.id, `تعديل مباشر: ${doc.name_ar}`, req.ip);
+    res.json({ ok: true, file_type: fileType, path: '/uploads/' + req.file.filename });
+  });
+});
+
 module.exports = router;
