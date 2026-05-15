@@ -1,0 +1,9 @@
+node_modules/
+db/safety.db
+db/safety.db-shm
+db/safety.db-wal
+uploads/*
+!uploads/.gitkeep
+.env
+*.log
+.claude/

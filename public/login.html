@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تسجيل الدخول - نظام إدارة الأمن والسلامة</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="login-body">
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-icon">🛡️</div>
+        <h1 id="siteName">نظام إدارة الأمن والسلامة</h1>
+        <p class="login-subtitle">Safety & Security Management System</p>
+      </div>
+
+      <div class="lang-switch">
+        <button class="btn-lang active" data-lang="ar">العربية</button>
+        <button class="btn-lang" data-lang="en">English</button>
+      </div>
+
+      <form id="loginForm" class="login-form">
+        <div class="form-group">
+          <label data-i18n="username">اسم المستخدم</label>
+          <input type="text" id="username" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label data-i18n="password">كلمة المرور</label>
+          <input type="password" id="password" required autocomplete="current-password">
+        </div>
+        <div id="loginError" class="error-msg"></div>
+        <button type="submit" class="btn btn-primary btn-block" data-i18n="login">دخول</button>
+      </form>
+
+      <div style="text-align: center; margin-top: 14px;">
+        <a href="/reset.html" style="color: var(--primary); text-decoration: none; font-size: 14px;">نسيت كلمة المرور؟</a>
+      </div>
+
+      <div class="login-footer">
+        <small>الحساب الافتراضي: admin / admin123</small>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/i18n.js"></script>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const errEl = document.getElementById('loginError');
+      errEl.textContent = '';
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          window.location.href = '/app.html';
+        } else {
+          errEl.textContent = data.error || 'فشل تسجيل الدخول';
+        }
+      } catch (err) {
+        errEl.textContent = 'خطأ في الاتصال';
+      }
+    });
+
+    // تحميل اسم الموقع
+    fetch('/api/settings/public').then(r => r.json()).then(s => {
+      if (s.site_name_ar) document.getElementById('siteName').textContent = s.site_name_ar;
+    });
+  </script>
+</body>
+</html>

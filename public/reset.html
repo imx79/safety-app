@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>استعادة كلمة المرور - نظام إدارة الأمن والسلامة</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="login-body">
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-icon">🔑</div>
+        <h1>استعادة كلمة المرور</h1>
+        <p class="login-subtitle">Safety & Security Management System</p>
+      </div>
+
+      <!-- الخطوة 1: طلب الرمز -->
+      <div id="step1">
+        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 16px; text-align: center;">
+          أدخل اسم المستخدم الخاص بك وسيقوم المدير بإعطائك رمز الاستعادة
+        </p>
+        <form id="requestForm" class="login-form">
+          <div class="form-group">
+            <label>اسم المستخدم</label>
+            <input type="text" id="usernameInput" required autocomplete="username">
+          </div>
+          <div id="requestError" class="error-msg"></div>
+          <button type="submit" class="btn btn-primary btn-block">طلب رمز الاستعادة</button>
+        </form>
+      </div>
+
+      <!-- الخطوة 2: إدخال الرمز وكلمة المرور الجديدة -->
+      <div id="step2" style="display:none;">
+        <div style="background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; padding: 14px; margin-bottom: 20px; text-align: center;">
+          <div style="font-size: 24px; margin-bottom: 8px;">✅</div>
+          <p style="color: #2e7d32; font-size: 14px; margin: 0;">
+            تم إنشاء رمز الاستعادة بنجاح.<br>
+            <strong>تواصل مع مدير النظام للحصول على الرمز المكون من 6 أرقام.</strong>
+          </p>
+        </div>
+        <form id="resetForm" class="login-form">
+          <div class="form-group">
+            <label>رمز الاستعادة (6 أرقام)</label>
+            <input type="text" id="codeInput" maxlength="6" pattern="[0-9]{6}" placeholder="123456" required
+              style="letter-spacing: 8px; font-size: 22px; text-align: center;">
+          </div>
+          <div class="form-group">
+            <label>كلمة المرور الجديدة</label>
+            <input type="password" id="newPassword" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label>تأكيد كلمة المرور</label>
+            <input type="password" id="confirmPassword" required minlength="6">
+          </div>
+          <div id="resetError" class="error-msg"></div>
+          <button type="submit" class="btn btn-primary btn-block">تعيين كلمة المرور الجديدة</button>
+        </form>
+      </div>
+
+      <!-- الخطوة 3: النجاح -->
+      <div id="step3" style="display:none; text-align: center; padding: 20px 0;">
+        <div style="font-size: 48px; margin-bottom: 16px;">🎉</div>
+        <h3 style="color: #2e7d32; margin-bottom: 8px;">تم بنجاح!</h3>
+        <p style="color: var(--text-muted);">تم تعيين كلمة المرور الجديدة بنجاح</p>
+        <a href="/login.html" class="btn btn-primary btn-block" style="margin-top: 20px;">الذهاب لتسجيل الدخول</a>
+      </div>
+
+      <div class="login-footer" style="margin-top: 20px;">
+        <a href="/login.html" style="color: var(--primary); text-decoration: none; font-size: 14px;">← العودة لتسجيل الدخول</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let savedUsername = '';
+
+    document.getElementById('requestForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('usernameInput').value.trim();
+      const errEl = document.getElementById('requestError');
+      errEl.textContent = '';
+
+      try {
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          savedUsername = username;
+          document.getElementById('step1').style.display = 'none';
+          document.getElementById('step2').style.display = 'block';
+        } else {
+          errEl.textContent = data.error || 'حدث خطأ';
+        }
+      } catch {
+        errEl.textContent = 'خطأ في الاتصال';
+      }
+    });
+
+    document.getElementById('resetForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const code = document.getElementById('codeInput').value.trim();
+      const newPassword = document.getElementById('newPassword').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+      const errEl = document.getElementById('resetError');
+      errEl.textContent = '';
+
+      if (newPassword !== confirmPassword) {
+        errEl.textContent = 'كلمتا المرور غير متطابقتين';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: savedUsername, code, new_password: newPassword })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          document.getElementById('step2').style.display = 'none';
+          document.getElementById('step3').style.display = 'block';
+        } else {
+          errEl.textContent = data.error || 'حدث خطأ';
+        }
+      } catch {
+        errEl.textContent = 'خطأ في الاتصال';
+      }
+    });
+
+    // تحميل اسم الموقع
+    fetch('/api/settings/public').then(r => r.json()).then(s => {
+      if (s.site_name_ar) document.title = 'استعادة كلمة المرور - ' + s.site_name_ar;
+    }).catch(() => {});
+  </script>
+</body>
+</html>
