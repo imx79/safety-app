@@ -847,6 +847,7 @@ async function renderSettings() {
       <div class="tabs">
         <button class="tab active" onclick="switchSettingsTab('general', this)">عام</button>
         <button class="tab" onclick="switchSettingsTab('appearance', this)">المظهر</button>
+        <button class="tab" onclick="switchSettingsTab('interface', this)">واجهة الموقع</button>
         <button class="tab" onclick="switchSettingsTab('system', this)">النظام</button>
         <button class="tab" onclick="switchSettingsTab('security', this)">الأمان</button>
       </div>
@@ -889,16 +890,76 @@ async function renderSettings() {
         <div class="form-grid">
           <div class="form-group">
             <label>اللون الرئيسي</label>
-            <input type="color" data-setting="primary_color" value="${settings.primary_color?.value || '#1e3a5f'}">
+            <input type="color" data-setting="primary_color" value="${settings.primary_color?.value || '#1e3a5f'}"
+              oninput="document.documentElement.style.setProperty('--primary', this.value)">
           </div>
           <div class="form-group">
             <label>اللون المميز</label>
-            <input type="color" data-setting="accent_color" value="${settings.accent_color?.value || '#d4a017'}">
+            <input type="color" data-setting="accent_color" value="${settings.accent_color?.value || '#d4a017'}"
+              oninput="document.documentElement.style.setProperty('--accent', this.value)">
           </div>
-          <div class="form-group full">
-            <label>مسار الشعار</label>
-            <input data-setting="logo_path" value="${settings.logo_path?.value || ''}" placeholder="/uploads/logo.png">
+        </div>
+      </div>
+
+      <div class="card hidden" id="settingsInterface">
+        <h3 class="mb-3">تخصيص واجهة الموقع</h3>
+
+        <!-- شعار الموقع -->
+        <div class="settings-section-title">🖼️ شعار الموقع</div>
+        <div class="logo-settings-area">
+          <div class="settings-logo-preview" id="settingsLogoPreview">
+            ${settings.logo_path?.value
+              ? `<img src="${settings.logo_path.value}" id="settingsLogoImg" alt="شعار الموقع">`
+              : `<span class="no-logo-text">لا يوجد شعار</span>`}
           </div>
+          <div class="logo-settings-controls">
+            <label class="btn btn-info" style="cursor:pointer">
+              📤 رفع شعار جديد
+              <input type="file" accept="image/*" style="display:none" onchange="uploadSiteLogoFile(this)">
+            </label>
+            <button class="btn btn-danger btn-sm" onclick="removeSiteLogo()" ${!settings.logo_path?.value ? 'style="display:none"' : ''} id="removeLogoBtn">🗑️ حذف الشعار</button>
+            <input type="hidden" data-setting="logo_path" id="logoPathInput" value="${settings.logo_path?.value || ''}">
+            <small class="text-muted d-block">PNG, JPG, SVG, WebP — الحد الأقصى 5 ميجا</small>
+          </div>
+        </div>
+
+        <!-- عنوان الشريط الجانبي -->
+        <div class="settings-section-title mt-4">📌 الشريط الجانبي</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>عنوان الشريط الجانبي (عربي)</label>
+            <input data-setting="sidebar_title_ar" value="${settings.sidebar_title_ar?.value || ''}" placeholder="الأمن والسلامة">
+          </div>
+          <div class="form-group">
+            <label>العنوان الفرعي (إنجليزي)</label>
+            <input data-setting="sidebar_subtitle_en" value="${settings.sidebar_subtitle_en?.value || ''}" placeholder="Safety &amp; Security">
+          </div>
+        </div>
+
+        <!-- إدارة عناصر القائمة الجانبية -->
+        <div class="settings-section-title mt-4">🗂️ عناصر القائمة الجانبية</div>
+        <p class="text-muted mb-3" style="font-size:13px">تحكم في إظهار أو إخفاء عناصر القائمة الجانبية.</p>
+        <div class="nav-items-manager">
+          ${[
+            { key: 'nav_show_dashboard', label: 'لوحة التحكم', icon: '📊' },
+            { key: 'nav_show_reports', label: 'التقارير', icon: '📋' },
+            { key: 'nav_show_templates', label: 'القوالب', icon: '📝' },
+            { key: 'nav_show_departments', label: 'الأقسام', icon: '🏢' },
+            { key: 'nav_show_users', label: 'المستخدمون', icon: '👥' },
+            { key: 'nav_show_evaluations', label: 'التقييمات', icon: '⭐' },
+            { key: 'nav_show_audit', label: 'سجل التدقيق', icon: '📜' },
+          ].map(item => `
+            <div class="nav-item-toggle">
+              <span class="nav-item-icon">${item.icon}</span>
+              <span class="nav-item-label">${item.label}</span>
+              <label class="toggle-switch">
+                <input type="checkbox" data-setting="${item.key}"
+                  ${(settings[item.key]?.value || '1') !== '0' ? 'checked' : ''}
+                  onchange="this.value = this.checked ? '1' : '0'; applyNavVisibility()">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          `).join('')}
         </div>
       </div>
 
@@ -956,10 +1017,74 @@ async function renderSettings() {
 function switchSettingsTab(tab, btn) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-  ['General', 'Appearance', 'System', 'Security'].forEach(t => {
+  ['General', 'Appearance', 'Interface', 'System', 'Security'].forEach(t => {
     document.getElementById('settings' + t).classList.add('hidden');
   });
   document.getElementById('settings' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.remove('hidden');
+}
+
+async function uploadSiteLogoFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('logo', file);
+  try {
+    toast('جاري رفع الشعار...', 'info');
+    const res = await fetch('/api/settings/upload-logo', { method: 'POST', body: fd, credentials: 'same-origin' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'فشل الرفع');
+    document.getElementById('logoPathInput').value = data.path;
+    const preview = document.getElementById('settingsLogoPreview');
+    if (preview) preview.innerHTML = `<img src="${data.path}" id="settingsLogoImg" alt="شعار الموقع">`;
+    const removeBtn = document.getElementById('removeLogoBtn');
+    if (removeBtn) removeBtn.style.display = '';
+    // تحديث الشعار في الشريط الجانبي فوراً
+    const sidebarLogo = document.getElementById('sidebarLogoImg');
+    if (sidebarLogo) { sidebarLogo.src = data.path; sidebarLogo.style.display = ''; }
+    else { refreshSidebarLogo(data.path); }
+    toast('تم رفع الشعار بنجاح');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function removeSiteLogo() {
+  document.getElementById('logoPathInput').value = '';
+  const preview = document.getElementById('settingsLogoPreview');
+  if (preview) preview.innerHTML = `<span class="no-logo-text">لا يوجد شعار</span>`;
+  const removeBtn = document.getElementById('removeLogoBtn');
+  if (removeBtn) removeBtn.style.display = 'none';
+  const sidebarLogo = document.getElementById('sidebarLogoImg');
+  if (sidebarLogo) sidebarLogo.style.display = 'none';
+  toast('تم حذف الشعار — احفظ الإعدادات لتطبيق التغيير');
+}
+
+function refreshSidebarLogo(path) {
+  const header = document.querySelector('.sidebar-header');
+  if (!header) return;
+  let img = header.querySelector('.sidebar-logo-img');
+  if (!img) {
+    img = document.createElement('img');
+    img.id = 'sidebarLogoImg';
+    img.className = 'sidebar-logo-img';
+    img.alt = 'شعار';
+    header.insertBefore(img, header.firstChild);
+  }
+  img.src = path;
+  img.style.display = '';
+}
+
+function applyNavVisibility() {
+  const map = {
+    nav_show_dashboard: 'dashboard', nav_show_reports: 'reports',
+    nav_show_templates: 'templates', nav_show_departments: 'departments',
+    nav_show_users: 'users', nav_show_evaluations: 'evaluations',
+    nav_show_audit: 'audit'
+  };
+  document.querySelectorAll('[data-setting^="nav_show_"]').forEach(el => {
+    const page = map[el.dataset.setting];
+    if (!page) return;
+    const navItem = document.querySelector(`.nav-item[data-page="${page}"]`);
+    if (navItem) navItem.style.display = el.checked ? '' : 'none';
+  });
 }
 
 async function saveSettings() {

@@ -165,21 +165,23 @@ function renderBuilder() {
 
       <!-- ===== قسم ملف القالب الأساسي ===== -->
       <details class="builder-section">
-        <summary>📄 ملف القالب الأساسي (PDF أو صورة)</summary>
+        <summary>📄 ملف القالب الأساسي</summary>
         <p class="text-muted mb-3" style="font-size:13px">
-          ارفع نموذج PDF أو صورة يمثل الشكل الرسمي للنموذج — سيظهر كخلفية خلف بيانات التقرير عند الطباعة.
+          ارفع نموذج PDF أو صورة أو وورد أو إكسل يمثل الشكل الرسمي للنموذج — سيُرفق مع التقرير عند الطباعة.
         </p>
         <div class="template-file-area" id="templateFileArea">
           ${renderTemplateFilePreview()}
         </div>
-        <label class="btn btn-warning mt-2" style="cursor:pointer">
-          📎 رفع ملف القالب (PDF / صورة)
-          <input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx" style="display:none" onchange="uploadTemplateFile(this)">
-        </label>
-        ${builderTemplate.template_file_path ? `
-          <button class="btn btn-danger btn-sm mt-2" onclick="removeTemplateFile()">🗑️ إزالة الملف</button>
-        ` : ''}
-        <small class="text-muted d-block mt-2">يدعم: PDF, PNG, JPG — الحد الأقصى 20 ميجا</small>
+        <div class="flex gap-2 mt-2 flex-wrap">
+          <label class="btn btn-warning" style="cursor:pointer">
+            📎 رفع ملف القالب
+            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="uploadTemplateFile(this)">
+          </label>
+          ${builderTemplate.template_file_path ? `
+            <button class="btn btn-danger btn-sm" onclick="removeTemplateFile()">🗑️ إزالة الملف</button>
+          ` : ''}
+        </div>
+        <small class="text-muted d-block mt-2">يدعم: PDF · PNG · JPG · Word (DOCX) · Excel (XLSX) — الحد الأقصى 20 ميجا</small>
       </details>
 
       <!-- ===== قسم التحكم في الإطار ===== -->
@@ -445,13 +447,30 @@ function renderTemplateFilePreview() {
     return `<div class="template-file-placeholder"><span>📄</span><p>لم يتم رفع ملف قالب بعد</p></div>`;
   }
   const fp = builderTemplate.template_file_path;
-  const ft = builderTemplate.template_file_type || (fp.endsWith('.pdf') ? 'pdf' : 'image');
+  const ext = fp.split('.').pop().toLowerCase();
+  const ft = builderTemplate.template_file_type || (ext === 'pdf' ? 'pdf' : ext === 'docx' ? 'docx' : ext === 'xlsx' ? 'xlsx' : 'image');
   if (ft === 'pdf') {
     return `
       <div class="template-file-info">
         <span class="file-type-badge pdf">PDF</span>
         <span>${fp.split('/').pop()}</span>
         <a href="${fp}" target="_blank" class="btn btn-sm btn-info">👁️ عرض</a>
+      </div>`;
+  }
+  if (ft === 'docx') {
+    return `
+      <div class="template-file-info">
+        <span class="file-type-badge docx">WORD</span>
+        <span>${fp.split('/').pop()}</span>
+        <a href="${fp}" download class="btn btn-sm btn-info">⬇️ تحميل</a>
+      </div>`;
+  }
+  if (ft === 'xlsx') {
+    return `
+      <div class="template-file-info">
+        <span class="file-type-badge xlsx">EXCEL</span>
+        <span>${fp.split('/').pop()}</span>
+        <a href="${fp}" download class="btn btn-sm btn-info">⬇️ تحميل</a>
       </div>`;
   }
   return `

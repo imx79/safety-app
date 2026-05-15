@@ -32,9 +32,9 @@ const uploadTemplateFile = multer({
   storage,
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = ['.pdf', '.png', '.jpg', '.jpeg', '.docx'];
+    const allowed = ['.pdf', '.png', '.jpg', '.jpeg', '.docx', '.xlsx'];
     if (allowed.includes(path.extname(file.originalname).toLowerCase())) cb(null, true);
-    else cb(new Error('صيغة الملف غير مدعومة. المسموح: PDF, PNG, JPG, DOCX'));
+    else cb(new Error('صيغة الملف غير مدعومة. المسموح: PDF, PNG, JPG, DOCX, XLSX'));
   }
 });
 
@@ -87,7 +87,7 @@ router.post('/upload-template-file', requirePermission('templates.create'), (req
       success: true,
       path: '/uploads/' + req.file.filename,
       original_name: req.file.originalname,
-      type: ext === '.pdf' ? 'pdf' : (ext === '.docx' ? 'docx' : 'image')
+      type: ext === '.pdf' ? 'pdf' : ext === '.docx' ? 'docx' : ext === '.xlsx' ? 'xlsx' : 'image'
     });
   });
 });

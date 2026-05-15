@@ -121,14 +121,53 @@ async function init() {
     document.getElementById('userRole').textContent = currentUser.role_name_ar;
     document.getElementById('userAvatar').textContent = currentUser.full_name.charAt(0);
 
-    if (publicSettings.site_name_ar) {
-      document.getElementById('appName').textContent = '🛡️ ' + publicSettings.site_name_ar;
+    // تطبيق عنوان الشريط الجانبي
+    const sidebarHeader = document.querySelector('.sidebar-header');
+    if (sidebarHeader) {
+      const titleEl = document.getElementById('appName');
+      const subtitleEl = sidebarHeader.querySelector('p');
+      if (publicSettings.sidebar_title_ar && titleEl)
+        titleEl.textContent = '🛡️ ' + publicSettings.sidebar_title_ar;
+      else if (publicSettings.site_name_ar && titleEl)
+        titleEl.textContent = '🛡️ ' + publicSettings.site_name_ar;
+      if (publicSettings.sidebar_subtitle_en && subtitleEl)
+        subtitleEl.textContent = publicSettings.sidebar_subtitle_en;
     }
 
-    // إخفاء عناصر القائمة بناءً على الصلاحيات
+    // عرض شعار الموقع في الشريط الجانبي
+    if (publicSettings.logo_path) {
+      const sidebarHeader2 = document.querySelector('.sidebar-header');
+      if (sidebarHeader2) {
+        const img = document.createElement('img');
+        img.id = 'sidebarLogoImg';
+        img.className = 'sidebar-logo-img';
+        img.src = publicSettings.logo_path;
+        img.alt = 'شعار';
+        sidebarHeader2.insertBefore(img, sidebarHeader2.firstChild);
+      }
+    }
+
+    // تطبيق الألوان
+    if (publicSettings.primary_color)
+      document.documentElement.style.setProperty('--primary', publicSettings.primary_color);
+    if (publicSettings.accent_color)
+      document.documentElement.style.setProperty('--accent', publicSettings.accent_color);
+
+    // إخفاء عناصر القائمة بناءً على الصلاحيات وإعدادات الواجهة
+    const navVisMap = {
+      dashboard: publicSettings.nav_show_dashboard,
+      reports: publicSettings.nav_show_reports,
+      templates: publicSettings.nav_show_templates,
+      departments: publicSettings.nav_show_departments,
+      users: publicSettings.nav_show_users,
+      evaluations: publicSettings.nav_show_evaluations,
+      audit: publicSettings.nav_show_audit,
+    };
     document.querySelectorAll('.nav-item').forEach(item => {
       const perm = item.dataset.perm;
-      if (perm && !hasPermission(perm)) item.style.display = 'none';
+      const page = item.dataset.page;
+      if (perm && !hasPermission(perm)) { item.style.display = 'none'; return; }
+      if (page && navVisMap[page] === '0') item.style.display = 'none';
     });
 
     const page = window.location.hash.replace('#', '') || 'dashboard';
