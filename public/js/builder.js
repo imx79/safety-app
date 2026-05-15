@@ -175,7 +175,7 @@ function renderBuilder() {
         <div class="flex gap-2 mt-2 flex-wrap">
           <label class="btn btn-warning" style="cursor:pointer">
             📎 رفع ملف القالب
-            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="uploadTemplateFile(this)">
+            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" style="display:none" onchange="uploadTemplateFile(this)">
           </label>
           ${builderTemplate.template_file_path ? `
             <button class="btn btn-danger btn-sm" onclick="removeTemplateFile()">🗑️ إزالة الملف</button>
@@ -442,41 +442,43 @@ async function rteInsertFile(editorId, fieldName, input, type) {
   }
 }
 
+function getFileType(fp, hint) {
+  if (hint && hint !== 'image') return hint;
+  const ext = fp.split('.').pop().toLowerCase();
+  if (ext === 'pdf') return 'pdf';
+  if (ext === 'docx' || ext === 'doc') return 'word';
+  if (ext === 'xlsx' || ext === 'xls') return 'excel';
+  return 'image';
+}
+
 function renderTemplateFilePreview() {
   if (!builderTemplate.template_file_path) {
     return `<div class="template-file-placeholder"><span>📄</span><p>لم يتم رفع ملف قالب بعد</p></div>`;
   }
   const fp = builderTemplate.template_file_path;
-  const ext = fp.split('.').pop().toLowerCase();
-  const ft = builderTemplate.template_file_type || (ext === 'pdf' ? 'pdf' : ext === 'docx' ? 'docx' : ext === 'xlsx' ? 'xlsx' : 'image');
-  if (ft === 'pdf') {
+  const ft = getFileType(fp, builderTemplate.template_file_type);
+  const name = fp.split('/').pop();
+
+  const badges = {
+    pdf:   { label: 'PDF',   cls: 'pdf',   icon: '📄', action: `<a href="${fp}" target="_blank" class="btn btn-sm btn-info">👁️ عرض</a>` },
+    word:  { label: 'WORD',  cls: 'word',  icon: '📝', action: `<a href="${fp}" download class="btn btn-sm btn-info">⬇️ تحميل</a>` },
+    excel: { label: 'EXCEL', cls: 'excel', icon: '📊', action: `<a href="${fp}" download class="btn btn-sm btn-info">⬇️ تحميل</a>` },
+  };
+
+  if (badges[ft]) {
+    const b = badges[ft];
     return `
       <div class="template-file-info">
-        <span class="file-type-badge pdf">PDF</span>
-        <span>${fp.split('/').pop()}</span>
-        <a href="${fp}" target="_blank" class="btn btn-sm btn-info">👁️ عرض</a>
-      </div>`;
-  }
-  if (ft === 'docx') {
-    return `
-      <div class="template-file-info">
-        <span class="file-type-badge docx">WORD</span>
-        <span>${fp.split('/').pop()}</span>
-        <a href="${fp}" download class="btn btn-sm btn-info">⬇️ تحميل</a>
-      </div>`;
-  }
-  if (ft === 'xlsx') {
-    return `
-      <div class="template-file-info">
-        <span class="file-type-badge xlsx">EXCEL</span>
-        <span>${fp.split('/').pop()}</span>
-        <a href="${fp}" download class="btn btn-sm btn-info">⬇️ تحميل</a>
+        <span style="font-size:24px">${b.icon}</span>
+        <span class="file-type-badge ${b.cls}">${b.label}</span>
+        <span class="text-muted" style="flex:1;overflow:hidden;text-overflow:ellipsis">${name}</span>
+        ${b.action}
       </div>`;
   }
   return `
     <div class="template-file-info">
-      <img src="${fp}" style="max-height:100px; max-width:200px; object-fit:contain; border:1px solid var(--border); border-radius:4px;">
-      <span>${fp.split('/').pop()}</span>
+      <img src="${fp}" style="max-height:100px;max-width:200px;object-fit:contain;border:1px solid var(--border);border-radius:4px;">
+      <span class="text-muted">${name}</span>
     </div>`;
 }
 

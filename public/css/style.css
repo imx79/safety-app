@@ -806,7 +806,11 @@ body[dir="rtl"] .field-actions { left: auto; right: 8px; }
   font-weight: 700;
   text-transform: uppercase;
 }
-.file-type-badge.pdf { background: #fee2e2; color: #dc2626; }
+.file-type-badge.pdf   { background: #fee2e2; color: #dc2626; }
+.file-type-badge.word  { background: #dbeafe; color: #1d4ed8; }
+.file-type-badge.excel { background: #dcfce7; color: #15803d; }
+.file-type-badge.docx  { background: #dbeafe; color: #1d4ed8; }
+.file-type-badge.xlsx  { background: #dcfce7; color: #15803d; }
 
 /* ================ Builder: Border Controls ================ */
 .color-input-wrap {

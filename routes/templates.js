@@ -32,9 +32,9 @@ const uploadTemplateFile = multer({
   storage,
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = ['.pdf', '.png', '.jpg', '.jpeg', '.docx', '.xlsx'];
+    const allowed = ['.pdf', '.png', '.jpg', '.jpeg', '.doc', '.docx', '.xls', '.xlsx'];
     if (allowed.includes(path.extname(file.originalname).toLowerCase())) cb(null, true);
-    else cb(new Error('صيغة الملف غير مدعومة. المسموح: PDF, PNG, JPG, DOCX, XLSX'));
+    else cb(new Error('صيغة الملف غير مدعومة. المسموح: PDF, PNG, JPG, DOC, DOCX, XLS, XLSX'));
   }
 });
 
@@ -83,11 +83,12 @@ router.post('/upload-template-file', requirePermission('templates.create'), (req
     if (err) return res.status(400).json({ error: err.message });
     if (!req.file) return res.status(400).json({ error: 'لم يتم رفع ملف' });
     const ext = path.extname(req.file.originalname).toLowerCase();
+    const typeMap = { '.pdf': 'pdf', '.doc': 'word', '.docx': 'word', '.xls': 'excel', '.xlsx': 'excel' };
     res.json({
       success: true,
       path: '/uploads/' + req.file.filename,
       original_name: req.file.originalname,
-      type: ext === '.pdf' ? 'pdf' : ext === '.docx' ? 'docx' : ext === '.xlsx' ? 'xlsx' : 'image'
+      type: typeMap[ext] || 'image'
     });
   });
 });
