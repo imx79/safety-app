@@ -4,7 +4,9 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = path.join(__dirname, 'safety.db');
+const DATA_DIR = process.env.DATA_DIR ? path.join(process.env.DATA_DIR, 'db') : __dirname;
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const DB_PATH = path.join(DATA_DIR, 'safety.db');
 
 // حذف قاعدة البيانات القديمة إذا كانت موجودة (اختياري)
 // if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);

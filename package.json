@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node server.js",
     "init-db": "node db/init.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "build": "echo Build complete"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": ["safety", "security", "reports", "management"],
   "author": "Safety Department",

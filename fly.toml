@@ -1,5 +1,5 @@
 app = "safety-app-sa"
-primary_region = "dxb"
+primary_region = "bom"
 
 [build]
 
