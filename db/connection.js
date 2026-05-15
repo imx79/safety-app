@@ -3,9 +3,14 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = path.join(__dirname, 'safety.db');
+// دعم مسار مخصص عبر متغير البيئة (مفيد للاستضافة السحابية)
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..');
+const DB_PATH = path.join(DATA_DIR, 'db', 'safety.db');
 
-// إذا لم تكن قاعدة البيانات موجودة، شغّل التهيئة
+// تأكد من وجود مجلد db
+const dbDir = path.dirname(DB_PATH);
+if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+
 if (!fs.existsSync(DB_PATH)) {
   console.log('⚠️  قاعدة البيانات غير موجودة. شغّل: npm run init-db');
 }

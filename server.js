@@ -10,7 +10,8 @@ const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'safety-app-secret-change-me';
 
 // تشغيل التهيئة إذا لم تكن قاعدة البيانات موجودة
-const DB_PATH = path.join(__dirname, 'db', 'safety.db');
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const DB_PATH = path.join(DATA_DIR, 'db', 'safety.db');
 if (!fs.existsSync(DB_PATH)) {
   console.log('🆕 قاعدة البيانات غير موجودة - يتم التهيئة...');
   require('./db/init');
@@ -60,7 +61,9 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 
 // ملفات ثابتة
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+app.use('/uploads', express.static(UPLOADS_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // إعادة التوجيه للصفحة الرئيسية
